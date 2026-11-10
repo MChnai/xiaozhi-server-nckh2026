@@ -1,0 +1,10 @@
+FROM python:3.11-slim-bookworm
+ENV DO_NOT_TRACK=1 HF_HUB_DISABLE_TELEMETRY=1 ORT_DISABLE_TELEMETRY=1
+ENV PYTHONUNBUFFERED=1 HF_HOME=/hf-cache HF_HUB_ETAG_TIMEOUT=30 HF_HUB_DOWNLOAD_TIMEOUT=90 TOKENIZERS_PARALLELISM=false
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel \
+    && python -m pip install --no-cache-dir "torch==2.6.0+cpu" --index-url https://pypi.org/simple --extra-index-url https://download.pytorch.org/whl/cpu \
+    && python -m pip install --no-cache-dir "ctranslate2==4.6.2" "transformers==4.51.3" "numpy==1.26.4" --index-url https://pypi.org/simple
+COPY deploy/nckh/prepare_model.py deploy/nckh/model_cache.py /opt/
+ENTRYPOINT ["python", "-u", "/opt/prepare_model.py"]
+

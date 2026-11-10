@@ -1,0 +1,29 @@
+# Python 3.11 CPU runtime. Model conversion and VieNeu use separate images.
+numpy==1.26.4
+websockets==14.2
+PyYAML==6.0.3
+onnxruntime==1.23.2
+opuslib-next==1.3.1
+pydub==0.25.1
+openai==2.8.1
+edge-tts==7.3.1
+httpx==0.28.1
+aiohttp==3.14.4
+aiohttp-cors==0.8.1
+ruamel.yaml==0.18.16
+loguru==0.7.3
+requests==2.34.2
+mcp==1.29.0
+PyJWT==2.13.0
+cryptography>=46,<51
+psutil>=7,<8
+portalocker>=3,<4
+Jinja2>=3.1.6,<4
+faster-whisper==1.2.1
+ctranslate2==4.6.2
+PyMySQL==1.1.2
+
+# Keep faster-whisper 1.2 file decoding compatible; newer PyAV changed av.open().
+av==15.1.0
+huggingface-hub==0.36.2
+tokenizers==0.21.4

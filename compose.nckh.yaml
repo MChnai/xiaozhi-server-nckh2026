@@ -1,0 +1,223 @@
+name: robot-ai-viet-v3
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Run setup.py first}
+      MYSQL_DATABASE: xiaozhi_esp32_server
+      MYSQL_USER: robot
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Run setup.py first}
+      TZ: Asia/Ho_Chi_Minh
+    command:
+    - --character-set-server=utf8mb4
+    - --collation-server=utf8mb4_unicode_ci
+    volumes:
+    - mysql-data:/var/lib/mysql
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - MYSQL_PWD=$$MYSQL_ROOT_PASSWORD mysql -h 127.0.0.1 -uroot -e 'SELECT 1' >/dev/null
+        2>&1
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+  redis:
+    image: redis:8.0-alpine
+    restart: unless-stopped
+    command:
+    - redis-server
+    - --appendonly
+    - 'yes'
+    volumes:
+    - redis-data:/data
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      interval: 10s
+      timeout: 3s
+      retries: 10
+  api:
+    build:
+      context: .
+      dockerfile: deploy/nckh/Dockerfile-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+      SERVER_PORT: 8003
+      SPRING_DATASOURCE_DRUID_URL: jdbc:mysql://db:3306/xiaozhi_esp32_server?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC&nullCatalogMeansCurrent=true&useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_DRUID_USERNAME: robot
+      SPRING_DATASOURCE_DRUID_PASSWORD: ${MYSQL_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_LIQUIBASE_CHANGE_LOG: classpath:db/changelog/db.changelog-nckh.yaml
+      NCKH_BOOTSTRAP_ENABLED: 'true'
+      NCKH_PUBLIC_HOST: ${NCKH_PUBLIC_HOST:?Set LAN IP in .env}
+      NCKH_SERVER_SECRET: ${NCKH_SERVER_SECRET:?Run setup.py first}
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx768m -Dfile.encoding=UTF-8
+    volumes:
+    - uploads:/uploadfile
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -fsS
+      - http://127.0.0.1:8003/xiaozhi/ota/
+      interval: 10s
+      timeout: 5s
+      retries: 40
+      start_period: 60s
+    image: robot-ai-viet-api:v3
+  voice:
+    build:
+      context: .
+      dockerfile: deploy/nckh/Dockerfile-voice
+    image: robot-ai-viet-voice:v3
+    restart: unless-stopped
+    init: true
+    depends_on:
+      api:
+        condition: service_healthy
+      piper:
+        condition: service_healthy
+    ports:
+    - 8000:8000
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+      NCKH_PUBLIC_HOST: ${NCKH_PUBLIC_HOST}
+      NCKH_SERVER_SECRET: ${NCKH_SERVER_SECRET}
+      NCKH_LLM_MODE: deepseek
+      DEEPSEEK_API_KEY: sk-43d194ea7533476e809c08c943c3b30a
+      DEEPSEEK_MODEL: deepseek-flash
+      OPENWEATHER_API_KEY: ${OPENWEATHER_API_KEY:-}
+      REMINDER_DB_HOST: db
+      REMINDER_DB_USER: robot
+      REMINDER_DB_PASSWORD: ${MYSQL_PASSWORD}
+      REMINDER_DB_NAME: xiaozhi_esp32_server
+      OMP_NUM_THREADS: 4
+      NCKH_PROFILE: nckh
+      PHOWHISPER_MODEL_PATH: /model-store/phowhisper-small-ct2
+      NCKH_VERSION: 3.0.0
+    volumes:
+    - voice-data:/opt/xiaozhi-esp32-server/data
+    - ./music:/opt/xiaozhi-esp32-server/music:ro
+    - voice-logs:/opt/xiaozhi-esp32-server/tmp
+    - asr-models:/model-store:ro
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import json,urllib.request; r=json.load(urllib.request.urlopen('http://127.0.0.1:8003/healthz',timeout=3));
+        assert r['ready'] and r['asr_loaded'] and r['vad_loaded']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+  web:
+    build:
+      context: .
+      dockerfile: deploy/nckh/Dockerfile-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+      voice:
+        condition: service_healthy
+    ports:
+    - 8002:8002
+    healthcheck:
+      test:
+      - CMD
+      - wget
+      - -qO-
+      - http://127.0.0.1:8002/healthz
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    image: robot-ai-viet-web:v3
+  piper:
+    build:
+      context: .
+      dockerfile: deploy/nckh/Dockerfile-tts
+      args:
+        TTS_ENGINE: piper
+    restart: unless-stopped
+    init: true
+    environment:
+      TTS_ENGINE: piper
+      NCKH_SERVER_SECRET: ${NCKH_SERVER_SECRET}
+      HF_HUB_OFFLINE: ${NCKH_TTS_OFFLINE:-0}
+    volumes:
+    - piper-models:/models
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:5100/healthz',timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 40
+      start_period: 90s
+    image: robot-ai-viet-piper:v3
+  vieneu:
+    profiles:
+    - vieneu
+    build:
+      context: .
+      dockerfile: deploy/nckh/Dockerfile-tts
+      args:
+        TTS_ENGINE: vieneu
+    restart: unless-stopped
+    init: true
+    environment:
+      TTS_ENGINE: vieneu
+      NCKH_SERVER_SECRET: ${NCKH_SERVER_SECRET}
+      VIENEU_PRECISION: ${VIENEU_PRECISION:-int8}
+      HF_HUB_OFFLINE: ${NCKH_TTS_OFFLINE:-0}
+    volumes:
+    - vieneu-models:/models
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:5100/healthz',timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 60
+      start_period: 120s
+    image: robot-ai-viet-vieneu:v3
+  model-setup:
+    profiles:
+    - setup
+    image: robot-ai-viet-model:v3
+    build:
+      context: .
+      dockerfile: deploy/nckh/Dockerfile-model
+    environment:
+      PHOWHISPER_REVISION: ${PHOWHISPER_REVISION:-main}
+      HF_HOME: /hf-cache
+      PYTHONUNBUFFERED: '1'
+      MODEL_OUTPUT: /model-store/phowhisper-small-ct2
+    volumes:
+    - asr-models:/model-store
+    - model-downloads:/hf-cache
+volumes:
+  mysql-data: null
+  redis-data: null
+  uploads: null
+  voice-data: null
+  voice-logs: null
+  piper-models: null
+  vieneu-models: null
+  asr-models: null
+  model-downloads: null

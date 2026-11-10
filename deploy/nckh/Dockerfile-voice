@@ -1,0 +1,15 @@
+FROM python:3.11-slim-bookworm
+ENV DO_NOT_TRACK=1 HF_HUB_DISABLE_TELEMETRY=1 ORT_DISABLE_TELEMETRY=1
+ENV TZ=Asia/Ho_Chi_Minh LANG=C.UTF-8 PYTHONUNBUFFERED=1 PYTHONIOENCODING=utf-8 NCKH_PROFILE=nckh HF_HUB_OFFLINE=1 TOKENIZERS_PARALLELISM=false
+RUN apt-get update && apt-get install -y --no-install-recommends libopus0 ffmpeg libgomp1 ca-certificates tzdata && rm -rf /var/lib/apt/lists/*
+WORKDIR /opt/xiaozhi-esp32-server
+COPY main/xiaozhi-server/requirements-nckh*.txt ./
+RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel \
+    && python -m pip install --no-cache-dir -r requirements-nckh.lock.txt --index-url https://pypi.org/simple
+COPY main/xiaozhi-server ./
+COPY deploy/nckh/robot_client.py /opt/robot_client.py
+COPY deploy/nckh/selftest.py /opt/selftest.py
+COPY deploy/nckh/voice-entrypoint.py /opt/voice-entrypoint.py
+EXPOSE 8000 8003
+ENTRYPOINT ["python", "/opt/voice-entrypoint.py"]
+

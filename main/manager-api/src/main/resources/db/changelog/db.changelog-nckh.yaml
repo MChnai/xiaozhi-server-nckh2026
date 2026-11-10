@@ -1,0 +1,28 @@
+databaseChangeLog:
+  - include:
+      file: db.changelog-master.yaml
+      relativeToChangelogFile: true
+  - changeSet:
+      id: nckh-vietnamese-20261104
+      author: nckh
+      changes:
+        - sqlFile:
+            encoding: UTF-8
+            path: nckh-20261104.sql
+            relativeToChangelogFile: true
+  - changeSet:
+      id: nckh-server-workbench-20261106
+      author: nckh
+      changes:
+        - sqlFile:
+            encoding: UTF-8
+            path: nckh-20261106.sql
+            relativeToChangelogFile: true
+  - changeSet:
+      id: nckh-server-v3-20261106
+      author: nckh
+      changes:
+        - sqlFile:
+            encoding: UTF-8
+            path: nckh-v3-20261106.sql
+            relativeToChangelogFile: true

@@ -1,0 +1,9 @@
+NckhLabControllerTest
+DeviceWebSocketStatusTest
+DeviceEnrollmentPermissionTest
+ConfigServiceImplTest
+DeviceServiceImplTest
+DeviceAutoUpdateTest
+DeviceTimeSerializationTest
+ShiroConfigTest
+Tests run: 35; failures: 0; errors: 0
